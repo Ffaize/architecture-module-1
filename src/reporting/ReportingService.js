@@ -4,7 +4,6 @@ export class ReportingService {
   }
 
   buildSalesSummary({ from, to } = {}) {
-    // Deliberate trade-off: reporting scans operational collections in-process.
     const start = from ? new Date(from).getTime() : Number.NEGATIVE_INFINITY;
     const end = to ? new Date(to).getTime() : Number.POSITIVE_INFINITY;
     const orders = [...this.database.orders.values()].filter((order) => {

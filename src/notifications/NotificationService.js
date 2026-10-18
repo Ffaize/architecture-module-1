@@ -17,7 +17,6 @@ export class NotificationService {
     const existing = this.database.notificationJobs.get(jobId);
     if (existing) return structuredClone(existing);
 
-    // Marketing edits this template often, but it still ships with the whole application.
     const job = {
       id: jobId,
       orderId: order.id,
