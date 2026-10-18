@@ -4,6 +4,13 @@ import { config } from "./config.js";
 
 const app = createApplication();
 
+// Background worker that delivers queued emails outside the checkout request.
+const notificationWorker = setInterval(() => {
+  app.services.notifications.deliverPending().catch((error) => {
+    console.error("Notification delivery failed", error);
+  });
+}, 1000);
+
 function sendJson(response, status, payload) {
   response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(payload, null, 2));
@@ -74,6 +81,7 @@ server.listen(config.port, () => {
 });
 
 function shutdown() {
+  clearInterval(notificationWorker);
   server.close(() => process.exit(0));
 }
 

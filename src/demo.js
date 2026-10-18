@@ -24,3 +24,7 @@ const result = await app.services.checkout.checkout({
 });
 
 console.log(JSON.stringify(result, null, 2));
+
+// Email is delivered after checkout by the background worker.
+await app.services.notifications.deliverPending();
+console.log(JSON.stringify(app.database.snapshot().notificationJobs, null, 2));

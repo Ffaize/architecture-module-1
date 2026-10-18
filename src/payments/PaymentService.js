@@ -1,16 +1,16 @@
 import { DomainError, ExternalDependencyError } from "../shared/errors.js";
 
 export class PaymentService {
-  constructor(database, orderRepository, provider) {
+  constructor(database, provider) {
     this.database = database;
-    this.orderRepository = orderRepository;
     this.provider = provider;
   }
 
-  async chargeOrder(orderId, paymentToken) {
-    // Deliberate boundary leak: Payments reads an Orders repository directly.
-    const order = this.orderRepository.findById(orderId);
-    if (!order) throw new DomainError("Order not found for payment", "ORDER_NOT_FOUND", 404);
+  // Checkout passes the order data Payments needs (id, totalCents, currency),
+  // so Payments no longer reads the Orders repository directly.
+  async chargeOrder(order, paymentToken) {
+    if (!order?.id) throw new DomainError("Order is required for payment", "ORDER_NOT_FOUND", 404);
+    const orderId = order.id;
 
     const existing = [...this.database.payments.values()].find(
       (payment) => payment.orderId === orderId && payment.status === "CAPTURED"
