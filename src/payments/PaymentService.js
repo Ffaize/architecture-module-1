@@ -6,8 +6,7 @@ export class PaymentService {
     this.provider = provider;
   }
 
-  // Checkout passes the order data Payments needs (id, totalCents, currency),
-  // so Payments does not depend on Orders storage.
+  // checkout gives us the order (id, totalCents, currency), we don't read the orders table
   async chargeOrder(order, paymentToken) {
     if (!order?.id) throw new DomainError("Order is required for payment", "ORDER_NOT_FOUND", 404);
     const orderId = order.id;

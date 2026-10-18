@@ -26,9 +26,8 @@ export class CheckoutService {
       throw error;
     }
 
-    // The order is paid at this point, so email must never roll it back.
-    // We only queue the confirmation; a background worker delivers it.
-    const notification = this.notificationService.enqueueOrderConfirmation(order);
+    // the order is already paid here, so the email only goes to the queue
+    const notification = this.notificationService.queueOrderEmail(order);
 
     return {
       order,

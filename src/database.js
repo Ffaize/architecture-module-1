@@ -11,7 +11,7 @@ export class InMemoryDatabase {
     this.payments = new Map();
     this.inventoryOperations = new Map();
     this.notifications = [];
-    this.notificationJobs = new Map();
+    this.emailQueue = new Map();
     this.sequences = { order: 0, payment: 0 };
   }
 
@@ -27,7 +27,7 @@ export class InMemoryDatabase {
       payments: structuredClone([...this.payments.values()]),
       inventoryOperations: structuredClone([...this.inventoryOperations.values()]),
       notifications: structuredClone(this.notifications),
-      notificationJobs: structuredClone([...this.notificationJobs.values()])
+      emailQueue: structuredClone([...this.emailQueue.values()])
     };
   }
 }

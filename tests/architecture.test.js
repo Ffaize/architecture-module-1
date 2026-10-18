@@ -2,75 +2,81 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-// Architecture fitness functions: they fail the build when module boundaries get worse.
+// these tests fail when modules start using each other's data or internals
 
 const srcDir = new URL("../src/", import.meta.url);
 
-const DATA_OWNERS = {
+// which database tables each module is allowed to use
+const tablesByModule = {
   checkout: [],
   orders: ["orders"],
   inventory: ["products", "inventoryOperations"],
   payments: ["payments"],
-  notifications: ["notifications", "notificationJobs"],
+  notifications: ["notifications", "emailQueue"],
   reporting: []
 };
-const SHARED_DATABASE_API = ["nextId"];
+const sharedDbMethods = ["nextId"];
 
-// Leaks that already exist today. This list may only shrink:
-// when a leak is fixed, the test fails until the line is removed here.
-const KNOWN_DATA_LEAKS = [
-  "orders -> products", // Orders calculates prices from Inventory data
+// leaks we already have. Remove a line when the leak is fixed,
+// the test will fail until you do. Never add new lines here.
+const knownLeaks = [
+  "orders -> products", // orders take prices from the inventory table
   "reporting -> notifications",
   "reporting -> orders",
   "reporting -> payments",
   "reporting -> products"
 ];
 
-function sourceFiles() {
+function readSourceFiles() {
   return readdirSync(srcDir, { recursive: true })
     .map((path) => path.replaceAll("\\", "/"))
     .filter((path) => path.endsWith(".js"))
-    .map((path) => ({ path, text: readFileSync(new URL(path, srcDir), "utf8") }));
+    .map((path) => ({ path, code: readFileSync(new URL(path, srcDir), "utf8") }));
 }
 
-function moduleOf(path) {
-  const [first, ...rest] = path.split("/");
-  return rest.length > 0 ? first : null;
+// "payments/PaymentService.js" -> "payments", "app.js" -> null
+function getModuleName(path) {
+  const parts = path.split("/");
+  return parts.length > 1 ? parts[0] : null;
 }
 
-test("modules use only their own data, apart from known leaks", () => {
+test("modules use only their own tables, apart from known leaks", () => {
   const leaks = new Set();
-  for (const { path, text } of sourceFiles()) {
-    const owner = moduleOf(path);
-    if (!(owner in DATA_OWNERS)) continue;
-    for (const [, collection] of text.matchAll(/this\.database\.(\w+)/g)) {
-      const allowed = DATA_OWNERS[owner].includes(collection) || SHARED_DATABASE_API.includes(collection);
-      if (!allowed) leaks.add(`${owner} -> ${collection}`);
+
+  for (const { path, code } of readSourceFiles()) {
+    const moduleName = getModuleName(path);
+    if (!(moduleName in tablesByModule)) continue;
+
+    for (const [, table] of code.matchAll(/this\.database\.(\w+)/g)) {
+      const allowed = tablesByModule[moduleName].includes(table) || sharedDbMethods.includes(table);
+      if (!allowed) leaks.add(`${moduleName} -> ${table}`);
     }
   }
 
-  assert.deepEqual([...leaks].sort(), [...KNOWN_DATA_LEAKS].sort());
+  assert.deepEqual([...leaks].sort(), [...knownLeaks].sort());
 });
 
 test("modules do not import other modules directly", () => {
-  for (const { path, text } of sourceFiles()) {
-    const owner = moduleOf(path);
-    if (!owner || owner === "shared") continue;
-    for (const [, target] of text.matchAll(/from\s+"\.\.\/([^/"]+)\//g)) {
-      assert.equal(target, "shared", `${path} imports ../${target}/`);
+  for (const { path, code } of readSourceFiles()) {
+    const moduleName = getModuleName(path);
+    if (!moduleName || moduleName === "shared") continue;
+
+    for (const [, imported] of code.matchAll(/from\s+"\.\.\/([^/"]+)\//g)) {
+      assert.equal(imported, "shared", `${path} imports ../${imported}/`);
     }
   }
 });
 
-test("payment provider and Orders repository stay behind their modules", () => {
-  for (const { path, text } of sourceFiles()) {
-    if (path === "app.js") continue; // composition root wires everything together
-    const owner = moduleOf(path);
-    if (owner !== "payments") {
-      assert.doesNotMatch(text, /PaymentProvider/, `${path} uses a payment provider directly`);
+test("payment provider and orders repository stay inside their modules", () => {
+  for (const { path, code } of readSourceFiles()) {
+    if (path === "app.js") continue; // app.js wires everything together, that's its job
+    const moduleName = getModuleName(path);
+
+    if (moduleName !== "payments") {
+      assert.doesNotMatch(code, /PaymentProvider/, `${path} uses a payment provider directly`);
     }
-    if (owner !== "orders") {
-      assert.doesNotMatch(text, /orderRepository|OrderRepository/i, `${path} uses the Orders repository`);
+    if (moduleName !== "orders") {
+      assert.doesNotMatch(code, /orderRepository/i, `${path} uses the orders repository`);
     }
   }
 });

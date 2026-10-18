@@ -46,8 +46,8 @@ test("checkout reserves stock, captures payment and sends confirmation", async (
   assert.equal(result.notification.status, "QUEUED");
   assert.equal(app.database.products.get("KEYBOARD").stock, 11);
 
-  await app.services.notifications.deliverPending();
-  assert.equal(app.database.notificationJobs.get(result.notification.id).status, "SENT");
+  await app.services.notifications.sendQueuedEmails();
+  assert.equal(app.database.emailQueue.get(result.notification.id).status, "SENT");
 });
 
 test("payment failure marks order failed and releases stock", async () => {
@@ -76,7 +76,7 @@ test("duplicate inventory reservation does not reduce stock twice", () => {
 test("reporting combines operational order and payment data", async () => {
   const app = buildApplication();
   await app.services.checkout.checkout(command);
-  await app.services.notifications.deliverPending();
+  await app.services.notifications.sendQueuedEmails();
 
   const report = app.services.reporting.buildSalesSummary();
 
@@ -99,7 +99,7 @@ test("catalog and order lists return detached records", async () => {
   assert.equal(app.services.orders.requireOrder("order_0001").status, "COMPLETED");
 });
 
-// Fitness function: email problems must not touch money or stock.
+// if mail is down, the order still goes through and the email is sent later
 test("checkout completes when the email provider is down and email is retried later", async () => {
   let mailWorks = false;
   const notificationProvider = {
@@ -111,26 +111,26 @@ test("checkout completes when the email provider is down and email is retried la
   const app = buildApplication({ notificationProvider });
 
   const result = await app.services.checkout.checkout(command);
-  await app.services.notifications.deliverPending();
+  await app.services.notifications.sendQueuedEmails();
 
   assert.equal(result.order.status, "COMPLETED");
   assert.equal(result.payment.status, "CAPTURED");
   assert.equal(app.database.products.get("KEYBOARD").stock, 11);
-  assert.equal(app.database.notificationJobs.get(result.notification.id).status, "QUEUED");
+  assert.equal(app.database.emailQueue.get(result.notification.id).status, "QUEUED");
 
   mailWorks = true;
-  await app.services.notifications.deliverPending();
+  await app.services.notifications.sendQueuedEmails();
 
-  const job = app.database.notificationJobs.get(result.notification.id);
-  assert.equal(job.status, "SENT");
-  assert.equal(job.attempts, 2);
+  const email = app.database.emailQueue.get(result.notification.id);
+  assert.equal(email.status, "SENT");
+  assert.equal(email.attempts, 2);
 });
 
 test("the same order confirmation is queued only once", async () => {
   const app = buildApplication();
   const result = await app.services.checkout.checkout(command);
 
-  app.services.notifications.enqueueOrderConfirmation(result.order);
+  app.services.notifications.queueOrderEmail(result.order);
 
-  assert.equal(app.database.notificationJobs.size, 1);
+  assert.equal(app.database.emailQueue.size, 1);
 });
