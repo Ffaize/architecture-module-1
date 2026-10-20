@@ -19,7 +19,7 @@ export function createApplication(options = {}) {
   const paymentProvider = options.paymentProvider ?? new FakePaymentProvider(settings.payment);
   const notificationProvider = options.notificationProvider
     ?? new FakeNotificationProvider(settings.notification);
-  const paymentService = new PaymentService(database, orderRepository, paymentProvider);
+  const paymentService = new PaymentService(database, paymentProvider);
   const notificationService = new NotificationService(database, notificationProvider);
   const reportingService = new ReportingService(database);
   const checkoutService = new CheckoutService({
@@ -34,6 +34,7 @@ export function createApplication(options = {}) {
     services: {
       checkout: checkoutService,
       inventory: inventoryService,
+      notifications: notificationService,
       orders: orderService,
       payments: paymentService,
       reporting: reportingService

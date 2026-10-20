@@ -24,3 +24,7 @@ const result = await app.services.checkout.checkout({
 });
 
 console.log(JSON.stringify(result, null, 2));
+
+// the email is sent later, after checkout
+await app.services.notifications.sendQueuedEmails();
+console.log(JSON.stringify(app.database.snapshot().emailQueue, null, 2));

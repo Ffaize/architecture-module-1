@@ -4,6 +4,13 @@ import { config } from "./config.js";
 
 const app = createApplication();
 
+// send queued emails once a second
+const emailTimer = setInterval(() => {
+  app.services.notifications.sendQueuedEmails().catch((error) => {
+    console.error("Could not send emails", error);
+  });
+}, 1000);
+
 function sendJson(response, status, payload) {
   response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(payload, null, 2));
@@ -74,6 +81,7 @@ server.listen(config.port, () => {
 });
 
 function shutdown() {
+  clearInterval(emailTimer);
   server.close(() => process.exit(0));
 }
 
